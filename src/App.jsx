@@ -430,7 +430,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Submit to HOD */}
+            {/* Submit to HOD/HOO */}
             <div className="sm:shrink-0">
               {submitSuccess ? (
                 <div
@@ -438,7 +438,7 @@ export default function App() {
                   aria-live="polite"
                   className="rounded-lg border border-green-300 bg-green-50 px-6 py-3 text-center font-semibold text-green-800"
                 >
-                  Submitted to HOD!
+                  Submitted to HOD/HOO!
                 </div>
               ) : showSubmitForm ? (
                 <form
@@ -496,7 +496,7 @@ export default function App() {
                   onClick={() => setShowSubmitForm(true)}
                   className="w-full cursor-pointer rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:w-auto"
                 >
-                  Submit to HOD
+                  Submit to HOD/HOO
                 </button>
               )}
             </div>
