@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import TallyCard from './components/TallyCard.jsx'
+import AdminPage from './components/AdminPage.jsx'
+import { submitTallyToCloud } from './firebase.js'
 
 const MIN_NAMES = 2
 const MAX_NAME_LENGTH = 40
 const STORAGE_KEY = 'tally-counter'
+const SUBMISSIONS_KEY = 'tally-submissions'
+const BROADCAST_CHANNEL = 'tally-counter-channel'
 
 function isValidTally(tally) {
   return (
@@ -34,11 +38,31 @@ function loadTallies() {
   }
 }
 
+function loadSubmissions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SUBMISSIONS_KEY))
+    return Array.isArray(saved) ? saved : []
+  } catch {
+    return []
+  }
+}
+
+function saveSubmissions(submissions) {
+  try {
+    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(submissions))
+  } catch {}
+}
+
 export default function App() {
   const [tallies, setTallies] = useState(loadTallies)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [showTotal, setShowTotal] = useState(false)
+  const [page, setPage] = useState('counter') // 'counter' | 'admin'
+  const [submitterName, setSubmitterName] = useState('')
+  const [submitterError, setSubmitterError] = useState('')
+  const [showSubmitForm, setShowSubmitForm] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -83,6 +107,48 @@ export default function App() {
     setTallies((current) => current.filter((t) => t.name !== targetName))
   }
 
+  function handleSubmitToHOD(e) {
+    e.preventDefault()
+    const label = submitterName.trim()
+    if (!label) {
+      setSubmitterError('Please enter your name or station.')
+      return
+    }
+
+    const submission = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      submittedBy: label,
+      submittedAt: new Date().toISOString(),
+      tallies: tallies.map(({ name, count }) => ({ name, count })),
+    }
+
+    const existing = loadSubmissions()
+    const updated = [...existing, submission]
+    saveSubmissions(updated)
+
+    // Sync to Firestore cloud database (for cross-device access)
+    submitTallyToCloud(submission).catch((err) => {
+      console.warn('Could not sync to cloud:', err)
+    })
+
+    // Notify local admin tabs in real time
+    try {
+      const channel = new BroadcastChannel(BROADCAST_CHANNEL)
+      channel.postMessage({ type: 'new-submission' })
+      channel.close()
+    } catch {}
+
+    setShowSubmitForm(false)
+    setSubmitterName('')
+    setSubmitterError('')
+    setSubmitSuccess(true)
+    setTimeout(() => setSubmitSuccess(false), 4000)
+  }
+
+  if (page === 'admin') {
+    return <AdminPage onBack={() => setPage('counter')} />
+  }
+
   return (
     <div className="min-h-screen bg-white text-blue-950">
       <header className="bg-blue-700 text-white">
@@ -94,12 +160,21 @@ export default function App() {
             height="512"
             className="size-24 shrink-0 sm:size-32"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-3xl font-bold tracking-tight">Tally Counter</h1>
             <p className="mt-1 text-blue-100">
               Add at least {MIN_NAMES} names, then start counting.
             </p>
           </div>
+          {/* Admin link */}
+          <button
+            type="button"
+            onClick={() => setPage('admin')}
+            className="shrink-0 cursor-pointer rounded-lg border border-blue-500 bg-blue-800/60 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-800"
+            title="HOD Admin Dashboard"
+          >
+            Admin
+          </button>
         </div>
       </header>
 
@@ -193,50 +268,123 @@ export default function App() {
         )}
 
         {tallies.length > 0 && (
-          <section className="mt-8">
-            <button
-              type="button"
-              onClick={() => setShowTotal((shown) => !shown)}
-              aria-expanded={showTotal}
-              aria-controls="total-summary"
-              className="w-full cursor-pointer rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 sm:w-auto"
-            >
-              {showTotal ? 'Hide total' : 'Total'}
-            </button>
-
-            {showTotal && (
-              <div
-                id="total-summary"
-                aria-live="polite"
-                className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5"
+          <section className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-start">
+            {/* Total toggle */}
+            <div className="flex-1">
+              <button
+                type="button"
+                onClick={() => setShowTotal((shown) => !shown)}
+                aria-expanded={showTotal}
+                aria-controls="total-summary"
+                className="w-full cursor-pointer rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 sm:w-auto"
               >
-                <table className="w-full text-left">
-                  <caption className="sr-only">Count for each name and the total</caption>
-                  <thead>
-                    <tr className="border-b border-blue-200 text-sm text-blue-800">
-                      <th scope="col" className="py-2 font-semibold">Name</th>
-                      <th scope="col" className="py-2 text-right font-semibold">Count</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tallies.map((tally) => (
-                      <tr key={tally.name} className="border-b border-blue-100">
-                        <td className="py-2 pr-4 wrap-break-word">{tally.name}</td>
-                        <td className="py-2 text-right tabular-nums">{tally.count}</td>
+                {showTotal ? 'Hide total' : 'Total'}
+              </button>
+
+              {showTotal && (
+                <div
+                  id="total-summary"
+                  aria-live="polite"
+                  className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5"
+                >
+                  <table className="w-full text-left">
+                    <caption className="sr-only">Count for each name and the total</caption>
+                    <thead>
+                      <tr className="border-b border-blue-200 text-sm text-blue-800">
+                        <th scope="col" className="py-2 font-semibold">Name</th>
+                        <th scope="col" className="py-2 text-right font-semibold">Count</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <th scope="row" className="pt-3 text-xl font-bold">Total</th>
-                      <td className="pt-3 text-right text-3xl font-bold text-blue-700 tabular-nums">
-                        {total}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {tallies.map((tally) => (
+                        <tr key={tally.name} className="border-b border-blue-100">
+                          <td className="py-2 pr-4 wrap-break-word">{tally.name}</td>
+                          <td className="py-2 text-right tabular-nums">{tally.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th scope="row" className="pt-3 text-xl font-bold">Total</th>
+                        <td className="pt-3 text-right text-3xl font-bold text-blue-700 tabular-nums">
+                          {total}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Submit to HOD */}
+            <div className="sm:shrink-0">
+              {submitSuccess ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-lg border border-green-300 bg-green-50 px-6 py-3 text-center font-semibold text-green-800"
+                >
+                  Submitted to HOD!
+                </div>
+              ) : showSubmitForm ? (
+                <form
+                  onSubmit={handleSubmitToHOD}
+                  noValidate
+                  className="rounded-xl border border-blue-200 bg-blue-50 p-4"
+                >
+                  <label htmlFor="submitter-name" className="block text-sm font-semibold text-blue-900">
+                    Your name / station
+                  </label>
+                  <input
+                    id="submitter-name"
+                    type="text"
+                    required
+                    value={submitterName}
+                    maxLength={40}
+                    autoComplete="off"
+                    placeholder="e.g. Gate A Usher"
+                    aria-invalid={Boolean(submitterError)}
+                    aria-describedby={submitterError ? 'submitter-error' : undefined}
+                    onChange={(e) => {
+                      setSubmitterName(e.target.value)
+                      setSubmitterError('')
+                    }}
+                    className="mt-2 w-full rounded-lg border-2 border-blue-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-blue-400 focus:border-blue-700"
+                  />
+                  {submitterError && (
+                    <p id="submitter-error" role="alert" className="mt-1.5 text-xs font-semibold text-red-600">
+                      {submitterError}
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="submit"
+                      className="flex-1 cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
+                    >
+                      Confirm Submit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSubmitForm(false)
+                        setSubmitterError('')
+                      }}
+                      className="cursor-pointer rounded-lg border-2 border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitForm(true)}
+                  className="w-full cursor-pointer rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:w-auto"
+                >
+                  Submit to HOD
+                </button>
+              )}
+            </div>
           </section>
         )}
       </main>
