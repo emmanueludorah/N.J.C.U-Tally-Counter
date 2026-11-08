@@ -27,10 +27,11 @@ function fromRow(row) {
  */
 export async function submitTallyToCloud(submission) {
   if (!supabase) throw NOT_CONFIGURED
-  const { error } = await supabase.from(TABLE).upsert({
+  // Insert only: the phones are allowed to add submissions, never to read,
+  // change or delete them. The server sets submitted_at itself.
+  const { error } = await supabase.from(TABLE).insert({
     id: submission.id,
     submitted_by: submission.submittedBy,
-    submitted_at: submission.submittedAt,
     tallies: submission.tallies,
   })
   if (error) throw error
@@ -99,4 +100,55 @@ export async function clearAllSubmissionsFromCloud() {
   // Supabase requires a filter on delete; this matches every row.
   const { error } = await supabase.from(TABLE).delete().neq('id', '')
   if (error) throw error
+}
+
+// ---------------------------------------------------------------------------
+// Admin login (Supabase Auth). The password is checked by Supabase's servers,
+// never in this code, and only accounts listed in the admins table can read
+// or delete submissions.
+// ---------------------------------------------------------------------------
+
+async function isAdmin() {
+  const { data, error } = await supabase.rpc('is_admin')
+  if (error) throw error
+  return data === true
+}
+
+/**
+ * Signs in an admin. Throws a user-friendly error if the email/password is
+ * wrong or the account is not an admin.
+ */
+export async function signInAdmin(email, password) {
+  if (!supabase) throw NOT_CONFIGURED
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    throw new Error(
+      error.status === 429
+        ? 'Too many attempts. Please wait a few minutes and try again.'
+        : 'Incorrect email or password.',
+    )
+  }
+  if (!(await isAdmin())) {
+    await supabase.auth.signOut()
+    throw new Error('This account does not have admin access.')
+  }
+}
+
+/**
+ * Returns true if an admin is already signed in on this device.
+ */
+export async function hasAdminSession() {
+  if (!supabase) return false
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) return false
+  try {
+    return await isAdmin()
+  } catch {
+    return false
+  }
+}
+
+export async function signOutAdmin() {
+  if (!supabase) return
+  await supabase.auth.signOut()
 }

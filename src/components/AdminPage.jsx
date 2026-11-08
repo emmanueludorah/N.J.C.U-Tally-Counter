@@ -3,49 +3,47 @@ import {
   subscribeToSubmissions,
   deleteSubmissionFromCloud,
   clearAllSubmissionsFromCloud,
+  signInAdmin,
+  signOutAdmin,
+  hasAdminSession,
 } from '../supabase.js'
 
-const ADMIN_PASSWORD = 'hod1234' // Change this to your preferred password
-const SUBMISSIONS_KEY = 'tally-submissions'
-const BROADCAST_CHANNEL = 'tally-counter-channel'
-
-function loadSubmissions() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SUBMISSIONS_KEY))
-    return Array.isArray(saved) ? saved : []
-  } catch {
-    return []
-  }
-}
-
-function saveSubmissions(submissions) {
-  try {
-    localStorage.setItem(SUBMISSIONS_KEY, JSON.stringify(submissions))
-  } catch {}
-}
+// Admin accounts are managed in Supabase (Authentication -> Users, plus the
+// admins table). No password is stored in this code.
 
 export default function AdminPage({ onBack, onNavigate }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [signingIn, setSigningIn] = useState(false)
   const [error, setError] = useState('')
   const [submissions, setSubmissions] = useState([])
   const [flash, setFlash] = useState(false)
   const [isCloudConnected, setIsCloudConnected] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Load submissions initially and subscribe to Supabase cloud updates
+  // Stay logged in on this device if an admin session already exists.
+  useEffect(() => {
+    let active = true
+    hasAdminSession().then((ok) => {
+      if (!active) return
+      setLoggedIn(ok)
+      setCheckingSession(false)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Only admins can read submissions; the database enforces this.
   useEffect(() => {
     if (!loggedIn) return
 
-    // Load locally cached submissions immediately
-    setSubmissions(loadSubmissions())
-
-    // Connect to Supabase live updates
     const unsubscribe = subscribeToSubmissions(
       (items) => {
         setIsCloudConnected(true)
         setSubmissions(items)
-        saveSubmissions(items)
         setFlash(true)
         setTimeout(() => setFlash(false), 800)
       },
@@ -55,24 +53,8 @@ export default function AdminPage({ onBack, onNavigate }) {
       },
     )
 
-    // Also listen locally via BroadcastChannel/storage for immediate same-device events
-    function refreshLocal() {
-      setSubmissions(loadSubmissions())
-      setFlash(true)
-      setTimeout(() => setFlash(false), 800)
-    }
-
-    let channel = null
-    if (typeof BroadcastChannel !== 'undefined') {
-      channel = new BroadcastChannel(BROADCAST_CHANNEL)
-      channel.onmessage = refreshLocal
-    }
-    window.addEventListener('storage', refreshLocal)
-
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe()
-      channel?.close()
-      window.removeEventListener('storage', refreshLocal)
     }
   }, [loggedIn])
 
@@ -89,19 +71,35 @@ export default function AdminPage({ onBack, onNavigate }) {
 
   const grandTotal = aggregated().reduce((sum, t) => sum + t.count, 0)
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      setLoggedIn(true)
-      setError('')
-    } else {
-      setError('Incorrect password. Please try again.')
+    if (signingIn) return
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.')
+      return
     }
+    setSigningIn(true)
+    setError('')
+    try {
+      await signInAdmin(email.trim(), password)
+      setPassword('')
+      setLoggedIn(true)
+    } catch (err) {
+      setError(err.message || 'Could not log in. Please try again.')
+    } finally {
+      setSigningIn(false)
+    }
+  }
+
+  async function handleLogout() {
+    await signOutAdmin()
+    setSubmissions([])
+    setIsCloudConnected(false)
+    setLoggedIn(false)
   }
 
   async function handleClearAll() {
     if (!window.confirm('Clear ALL submissions? This cannot be undone.')) return
-    saveSubmissions([])
     setSubmissions([])
     try {
       await clearAllSubmissionsFromCloud()
@@ -111,9 +109,7 @@ export default function AdminPage({ onBack, onNavigate }) {
   }
 
   async function handleRemoveSubmission(id) {
-    const updated = submissions.filter((s) => s.id !== id)
-    saveSubmissions(updated)
-    setSubmissions(updated)
+    setSubmissions((current) => current.filter((s) => s.id !== id))
     try {
       await deleteSubmissionFromCloud(id)
     } catch (err) {
@@ -148,6 +144,14 @@ export default function AdminPage({ onBack, onNavigate }) {
     window.print()
   }
 
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-blue-950 text-white">
+        Loading…
+      </div>
+    )
+  }
+
   if (!loggedIn) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-blue-950 px-4">
@@ -170,6 +174,22 @@ export default function AdminPage({ onBack, onNavigate }) {
           </div>
 
           <form onSubmit={handleLogin} noValidate>
+            <label htmlFor="admin-email" className="block text-sm font-semibold text-blue-900">
+              Email
+            </label>
+            <input
+              id="admin-email"
+              type="email"
+              value={email}
+              autoComplete="username"
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setError('')
+              }}
+              placeholder="Enter admin email"
+              aria-invalid={Boolean(error)}
+              className="mt-2 mb-4 w-full rounded-lg border-2 border-blue-200 px-4 py-3 outline-none placeholder:text-blue-300 focus:border-blue-700"
+            />
             <label htmlFor="admin-password" className="block text-sm font-semibold text-blue-900">
               Password
             </label>
@@ -193,9 +213,10 @@ export default function AdminPage({ onBack, onNavigate }) {
             )}
             <button
               type="submit"
-              className="mt-4 w-full cursor-pointer rounded-lg bg-blue-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800"
+              disabled={signingIn}
+              className="mt-4 w-full cursor-pointer rounded-lg bg-blue-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
             >
-              Login
+              {signingIn ? 'Logging in…' : 'Login'}
             </button>
           </form>
 
@@ -257,7 +278,7 @@ export default function AdminPage({ onBack, onNavigate }) {
             )}
             <button
               type="button"
-              onClick={() => setLoggedIn(false)}
+              onClick={handleLogout}
               className="cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
             >
               Logout
