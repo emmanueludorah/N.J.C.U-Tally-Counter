@@ -24,7 +24,7 @@ function saveSubmissions(submissions) {
   } catch {}
 }
 
-export default function AdminPage({ onBack }) {
+export default function AdminPage({ onBack, onNavigate }) {
   const [password, setPassword] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
   const [error, setError] = useState('')
@@ -236,7 +236,7 @@ export default function AdminPage({ onBack }) {
               <p className="text-xs text-blue-500">Live aggregated counts</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {submissions.length > 0 && (
               <button
                 type="button"
@@ -244,6 +244,15 @@ export default function AdminPage({ onBack }) {
                 className="cursor-pointer rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
               >
                 Clear All
+              </button>
+            )}
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('calculator')}
+                className="cursor-pointer rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors"
+              >
+                Calculator
               </button>
             )}
             <button

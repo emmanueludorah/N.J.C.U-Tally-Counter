@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import TallyCard from './components/TallyCard.jsx'
 import AdminPage from './components/AdminPage.jsx'
+import Calculator from './components/Calculator.jsx'
 import { submitTallyToCloud } from './firebase.js'
 
 const MIN_NAMES = 2
@@ -58,7 +59,8 @@ export default function App() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [showTotal, setShowTotal] = useState(false)
-  const [page, setPage] = useState('counter') // 'counter' | 'admin'
+  const [page, setPage] = useState('counter') // 'counter' | 'admin' | 'calculator'
+  const [menuOpen, setMenuOpen] = useState(false)
   const [submitterName, setSubmitterName] = useState('')
   const [submitterError, setSubmitterError] = useState('')
   const [showSubmitForm, setShowSubmitForm] = useState(false)
@@ -146,35 +148,137 @@ export default function App() {
   }
 
   if (page === 'admin') {
-    return <AdminPage onBack={() => setPage('counter')} />
+    return (
+      <AdminPage
+        onBack={() => setPage('counter')}
+        onNavigate={(p) => setPage(p)}
+      />
+    )
+  }
+
+  if (page === 'calculator') {
+    return (
+      <Calculator
+        onBack={() => setPage('counter')}
+        onNavigate={(p) => setPage(p)}
+      />
+    )
   }
 
   return (
     <div className="min-h-screen bg-white text-blue-950">
       <header className="bg-blue-700 text-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-4 sm:gap-6 sm:px-6">
-          <img
-            src="/logo.png"
-            alt="The Royal Usher, The Redeemed Christian Church of God"
-            width="512"
-            height="512"
-            className="size-24 shrink-0 sm:size-32"
-          />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-3xl font-bold tracking-tight">Tally Counter</h1>
-            <p className="mt-1 text-blue-100">
-              Add at least {MIN_NAMES} names, then start counting.
-            </p>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:gap-6 sm:px-6">
+          <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+            <img
+              src="/logo.png"
+              alt="The Royal Usher, The Redeemed Christian Church of God"
+              width="512"
+              height="512"
+              className="size-20 shrink-0 sm:size-28"
+            />
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Tally Counter</h1>
+              <p className="mt-0.5 text-xs sm:text-sm text-blue-100">
+                Add at least {MIN_NAMES} names, then start counting.
+              </p>
+            </div>
           </div>
-          {/* Admin link */}
-          <button
-            type="button"
-            onClick={() => setPage('admin')}
-            className="shrink-0 cursor-pointer rounded-lg border border-blue-500 bg-blue-800/60 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-800"
-            title="HOD Admin Dashboard"
-          >
-            Admin
-          </button>
+
+          {/* Desktop Menu Bar */}
+          <nav aria-label="Main menu" className="hidden sm:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage('counter')}
+              className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                page === 'counter'
+                  ? 'bg-white text-blue-900 shadow-sm'
+                  : 'text-blue-100 hover:bg-blue-800'
+              }`}
+            >
+              Counter
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage('calculator')}
+              className="cursor-pointer rounded-lg border border-blue-400/60 bg-blue-800/40 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-800"
+            >
+              Calculator
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage('admin')}
+              className="cursor-pointer rounded-lg border border-blue-400/60 bg-blue-800/40 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-800"
+            >
+              Admin
+            </button>
+          </nav>
+
+          {/* Mobile Hamburger Menu Button */}
+          <div className="relative sm:hidden">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-expanded={menuOpen}
+              aria-label="Toggle navigation menu"
+              className="cursor-pointer rounded-lg border border-blue-400/60 bg-blue-800/50 p-2.5 text-white hover:bg-blue-800 focus:outline-none"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                className="h-6 w-6"
+              >
+                {menuOpen ? (
+                  <path d="M18 6L6 18M6 6l12 12" />
+                ) : (
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+
+            {/* Mobile Dropdown Menu */}
+            {menuOpen && (
+              <div
+                className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-blue-100 bg-white p-2 text-blue-950 shadow-2xl z-50 animate-in fade-in"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPage('counter')
+                    setMenuOpen(false)
+                  }}
+                  className={`w-full text-left rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                    page === 'counter' ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-blue-50'
+                  }`}
+                >
+                  Counter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPage('calculator')
+                    setMenuOpen(false)
+                  }}
+                  className="w-full text-left rounded-lg px-3 py-2.5 text-sm font-semibold hover:bg-blue-50 transition-colors"
+                >
+                  Calculator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPage('admin')
+                    setMenuOpen(false)
+                  }}
+                  className="w-full text-left rounded-lg px-3 py-2.5 text-sm font-semibold hover:bg-blue-50 transition-colors"
+                >
+                  Admin
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
