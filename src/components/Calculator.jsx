@@ -158,7 +158,7 @@ export default function Calculator({ onBack, onNavigate }) {
               ±
             </div>
             <div>
-              <h1 className="text-xl font-bold text-blue-950">Basic Calculator</h1>
+              <h1 className="text-xl font-bold text-blue-950">Calculator</h1>
               <p className="text-xs text-blue-500">Quick additions & calculations</p>
             </div>
           </div>

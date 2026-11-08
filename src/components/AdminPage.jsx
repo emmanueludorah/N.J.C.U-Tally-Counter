@@ -3,7 +3,7 @@ import {
   subscribeToSubmissions,
   deleteSubmissionFromCloud,
   clearAllSubmissionsFromCloud,
-} from '../firebase.js'
+} from '../supabase.js'
 
 const ADMIN_PASSWORD = 'hod1234' // Change this to your preferred password
 const SUBMISSIONS_KEY = 'tally-submissions'
@@ -33,14 +33,14 @@ export default function AdminPage({ onBack, onNavigate }) {
   const [isCloudConnected, setIsCloudConnected] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Load submissions initially and subscribe to Firestore cloud updates
+  // Load submissions initially and subscribe to Supabase cloud updates
   useEffect(() => {
     if (!loggedIn) return
 
     // Load locally cached submissions immediately
     setSubmissions(loadSubmissions())
 
-    // Connect to Firestore live updates
+    // Connect to Supabase live updates
     const unsubscribe = subscribeToSubmissions(
       (items) => {
         setIsCloudConnected(true)
@@ -287,7 +287,7 @@ export default function AdminPage({ onBack, onNavigate }) {
             </span>
           </div>
           <span className="text-xs text-blue-500 font-medium">
-            {isCloudConnected ? 'Connected to Firebase' : 'Sync ready'}
+            {isCloudConnected ? 'Connected to Supabase' : 'Sync ready'}
           </span>
         </div>
 

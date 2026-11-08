@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import TallyCard from './components/TallyCard.jsx'
 import AdminPage from './components/AdminPage.jsx'
 import Calculator from './components/Calculator.jsx'
-import { submitTallyToCloud } from './firebase.js'
+import { submitTallyToCloud } from './supabase.js'
 
 const MIN_NAMES = 2
 const MAX_NAME_LENGTH = 40
@@ -128,7 +128,7 @@ export default function App() {
     const updated = [...existing, submission]
     saveSubmissions(updated)
 
-    // Sync to Firestore cloud database (for cross-device access)
+    // Sync to Supabase cloud database (for cross-device access)
     submitTallyToCloud(submission).catch((err) => {
       console.warn('Could not sync to cloud:', err)
     })
