@@ -31,6 +31,7 @@ export default function AdminPage({ onBack }) {
   const [submissions, setSubmissions] = useState([])
   const [flash, setFlash] = useState(false)
   const [isCloudConnected, setIsCloudConnected] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Load submissions initially and subscribe to Firestore cloud updates
   useEffect(() => {
@@ -118,6 +119,33 @@ export default function AdminPage({ onBack }) {
     } catch (err) {
       console.warn('Could not remove from cloud:', err)
     }
+  }
+
+  function handleCopyReport() {
+    const aggList = aggregated()
+    const lines = [
+      'Attendance Summary Report',
+      `Date: ${new Date().toLocaleString()}`,
+      '---------------------------------',
+      ...aggList.map((t) => `${t.name}: ${t.count}`),
+      '---------------------------------',
+      `Grand Total: ${grandTotal}`,
+      '',
+      `Submissions (${submissions.length}):`,
+      ...[...submissions].reverse().map((s) => {
+        const subTotal = s.tallies.reduce((sum, t) => sum + t.count, 0)
+        return `- ${s.submittedBy || 'Counter'}: ${subTotal}`
+      }),
+    ]
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 3000)
+    })
+  }
+
+  function handlePrint() {
+    window.print()
   }
 
   if (!loggedIn) {
@@ -270,9 +298,27 @@ export default function AdminPage({ onBack }) {
                 flash ? 'border-yellow-400 bg-yellow-50' : 'border-blue-200 bg-blue-50'
               }`}
             >
-              <h2 className="mb-4 text-lg font-bold text-blue-900">
-                Grand Total — All Submissions
-              </h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-blue-900">
+                  Grand Total — All Submissions
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyReport}
+                    className="cursor-pointer rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100"
+                  >
+                    {copied ? 'Copied to Clipboard!' : 'Copy Report'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="cursor-pointer rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100"
+                  >
+                    Print / PDF
+                  </button>
+                </div>
+              </div>
               <table className="w-full text-left">
                 <caption className="sr-only">Aggregated count totals across all submissions</caption>
                 <thead>

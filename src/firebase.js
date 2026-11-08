@@ -12,13 +12,13 @@ import {
 } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyDOf77vfyouM53PlwSCvRMPpb-AZuem4JA',
-  authDomain: 'tally-counter-4081f.firebaseapp.com',
-  projectId: 'tally-counter-4081f',
-  storageBucket: 'tally-counter-4081f.firebasestorage.app',
-  messagingSenderId: '655237108568',
-  appId: '1:655237108568:web:323e10e46ecd0237dc0b2d',
-  measurementId: 'G-QJMDWET5KQ',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDOf77vfyouM53PlwSCvRMPpb-AZuem4JA',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'tally-counter-4081f.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'tally-counter-4081f',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'tally-counter-4081f.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '655237108568',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:655237108568:web:323e10e46ecd0237dc0b2d',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-QJMDWET5KQ',
 }
 
 const app = initializeApp(firebaseConfig)
