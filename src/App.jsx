@@ -65,6 +65,7 @@ export default function App() {
   const [submitterError, setSubmitterError] = useState('')
   const [showSubmitForm, setShowSubmitForm] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -109,8 +110,9 @@ export default function App() {
     setTallies((current) => current.filter((t) => t.name !== targetName))
   }
 
-  function handleSubmitToHOD(e) {
+  async function handleSubmitToHOD(e) {
     e.preventDefault()
+    if (submitting) return
     const label = submitterName.trim()
     if (!label) {
       setSubmitterError('Please enter your name or station.')
@@ -124,14 +126,22 @@ export default function App() {
       tallies: tallies.map(({ name, count }) => ({ name, count })),
     }
 
-    const existing = loadSubmissions()
-    const updated = [...existing, submission]
-    saveSubmissions(updated)
-
-    // Sync to Supabase cloud database (for cross-device access)
-    submitTallyToCloud(submission).catch((err) => {
+    // Send to the Supabase cloud database so the HOD sees it on any device.
+    // Only report success once it has actually arrived.
+    setSubmitting(true)
+    setSubmitterError('')
+    try {
+      await submitTallyToCloud(submission)
+    } catch (err) {
       console.warn('Could not sync to cloud:', err)
-    })
+      setSubmitterError('Could not send to HOD. Check your internet connection and try again.')
+      return
+    } finally {
+      setSubmitting(false)
+    }
+
+    const existing = loadSubmissions()
+    saveSubmissions([...existing, submission])
 
     // Notify local admin tabs in real time
     try {
@@ -463,9 +473,10 @@ export default function App() {
                   <div className="mt-3 flex gap-2">
                     <button
                       type="submit"
-                      className="flex-1 cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800"
+                      disabled={submitting}
+                      className="flex-1 cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
                     >
-                      Confirm Submit
+                      {submitting ? 'Sending…' : 'Confirm Submit'}
                     </button>
                     <button
                       type="button"
