@@ -38,6 +38,7 @@ export default function App() {
   const [tallies, setTallies] = useState(loadTallies)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [showTotal, setShowTotal] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function App() {
 
   const namesNeeded = Math.max(MIN_NAMES - tallies.length, 0)
   const isUnlocked = namesNeeded === 0
+  const total = tallies.reduce((sum, t) => sum + t.count, 0)
 
   function handleAdd(event) {
     event.preventDefault()
@@ -188,6 +190,54 @@ export default function App() {
               />
             ))}
           </ul>
+        )}
+
+        {tallies.length > 0 && (
+          <section className="mt-8">
+            <button
+              type="button"
+              onClick={() => setShowTotal((shown) => !shown)}
+              aria-expanded={showTotal}
+              aria-controls="total-summary"
+              className="w-full cursor-pointer rounded-lg bg-blue-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 sm:w-auto"
+            >
+              {showTotal ? 'Hide total' : 'Total'}
+            </button>
+
+            {showTotal && (
+              <div
+                id="total-summary"
+                aria-live="polite"
+                className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-5"
+              >
+                <table className="w-full text-left">
+                  <caption className="sr-only">Count for each name and the total</caption>
+                  <thead>
+                    <tr className="border-b border-blue-200 text-sm text-blue-800">
+                      <th scope="col" className="py-2 font-semibold">Name</th>
+                      <th scope="col" className="py-2 text-right font-semibold">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tallies.map((tally) => (
+                      <tr key={tally.name} className="border-b border-blue-100">
+                        <td className="py-2 pr-4 wrap-break-word">{tally.name}</td>
+                        <td className="py-2 text-right tabular-nums">{tally.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row" className="pt-3 text-xl font-bold">Total</th>
+                      <td className="pt-3 text-right text-3xl font-bold text-blue-700 tabular-nums">
+                        {total}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </section>
         )}
       </main>
     </div>
