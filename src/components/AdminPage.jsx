@@ -169,7 +169,7 @@ export default function AdminPage({ onBack, onNavigate }) {
                 <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-blue-950">HOD Admin Login</h2>
+            <h2 className="text-2xl font-bold text-blue-950">Admin Login</h2>
             <p className="mt-1 text-sm text-blue-600">Head of Department access only</p>
           </div>
 
@@ -253,7 +253,7 @@ export default function AdminPage({ onBack, onNavigate }) {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-blue-950">HOD Admin Dashboard</h1>
+              <h1 className="text-xl font-bold text-blue-950">Admin Dashboard</h1>
               <p className="text-xs text-blue-500">Live aggregated counts</p>
             </div>
           </div>

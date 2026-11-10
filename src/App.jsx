@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import TallyCard from './components/TallyCard.jsx'
 import AdminPage from './components/AdminPage.jsx'
 import Calculator from './components/Calculator.jsx'
-import { submitTallyToCloud } from './supabase.js'
+import { isConnectionError, submitTallyToCloud } from './supabase.js'
 
 const MIN_NAMES = 2
 const MAX_NAME_LENGTH = 40
 const STORAGE_KEY = 'tally-counter'
 const SUBMISSIONS_KEY = 'tally-submissions'
+const PENDING_KEY = 'tally-pending-submissions'
 const BROADCAST_CHANNEL = 'tally-counter-channel'
+const RETRY_INTERVAL_MS = 30000
 
 function isValidTally(tally) {
   return (
@@ -54,6 +56,32 @@ function saveSubmissions(submissions) {
   } catch {}
 }
 
+// Submissions made without internet wait here until they can be sent.
+function loadPending() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PENDING_KEY))
+    return Array.isArray(saved) ? saved : []
+  } catch {
+    return []
+  }
+}
+
+function savePending(pending) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pending))
+  } catch {}
+}
+
+// Records a submission that reached the HOD and tells open admin tabs.
+function recordSent(submission) {
+  saveSubmissions([...loadSubmissions(), submission])
+  try {
+    const channel = new BroadcastChannel(BROADCAST_CHANNEL)
+    channel.postMessage({ type: 'new-submission' })
+    channel.close()
+  } catch {}
+}
+
 export default function App() {
   const [tallies, setTallies] = useState(loadTallies)
   const [name, setName] = useState('')
@@ -64,9 +92,48 @@ export default function App() {
   const [submitterName, setSubmitterName] = useState('')
   const [submitterError, setSubmitterError] = useState('')
   const [showSubmitForm, setShowSubmitForm] = useState(false)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [pendingCount, setPendingCount] = useState(() => loadPending().length)
   const inputRef = useRef(null)
+  const sendingPendingRef = useRef(false)
+
+  // Sends any submissions saved while offline, oldest first. Stops at the
+  // first connection failure and tries again later.
+  async function sendPending() {
+    if (sendingPendingRef.current) return
+    sendingPendingRef.current = true
+    try {
+      for (const submission of loadPending()) {
+        try {
+          await submitTallyToCloud(submission)
+        } catch (err) {
+          if (isConnectionError(err)) break
+          console.warn('A saved submission was rejected and will be retried:', err)
+          continue
+        }
+        savePending(loadPending().filter((s) => s.id !== submission.id))
+        recordSent(submission)
+      }
+    } finally {
+      sendingPendingRef.current = false
+      setPendingCount(loadPending().length)
+    }
+  }
+
+  // Try when the app opens, whenever the phone reconnects, and every 30s.
+  useEffect(() => {
+    sendPending()
+    const retry = () => {
+      if (loadPending().length > 0) sendPending()
+    }
+    window.addEventListener('online', retry)
+    const timer = setInterval(retry, RETRY_INTERVAL_MS)
+    return () => {
+      window.removeEventListener('online', retry)
+      clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -127,34 +194,31 @@ export default function App() {
     }
 
     // Send to the Supabase cloud database so the HOD sees it on any device.
-    // Only report success once it has actually arrived.
+    // Without internet it is saved on the phone and sent automatically later.
     setSubmitting(true)
     setSubmitterError('')
+    let message = 'Submitted to HOD/HOO!'
     try {
       await submitTallyToCloud(submission)
+      recordSent(submission)
     } catch (err) {
-      console.warn('Could not sync to cloud:', err)
-      setSubmitterError('Could not send to HOD. Check your internet connection and try again.')
-      return
+      if (!isConnectionError(err)) {
+        console.warn('Could not sync to cloud:', err)
+        setSubmitterError('Could not send to HOD. Please try again.')
+        return
+      }
+      savePending([...loadPending(), submission])
+      setPendingCount(loadPending().length)
+      message = 'No internet. Saved on this phone. It will send to HOD/HOO automatically when you are back online.'
     } finally {
       setSubmitting(false)
     }
 
-    const existing = loadSubmissions()
-    saveSubmissions([...existing, submission])
-
-    // Notify local admin tabs in real time
-    try {
-      const channel = new BroadcastChannel(BROADCAST_CHANNEL)
-      channel.postMessage({ type: 'new-submission' })
-      channel.close()
-    } catch {}
-
     setShowSubmitForm(false)
     setSubmitterName('')
     setSubmitterError('')
-    setSubmitSuccess(true)
-    setTimeout(() => setSubmitSuccess(false), 4000)
+    setSubmitSuccess(message)
+    setTimeout(() => setSubmitSuccess(''), 6000)
   }
 
   if (page === 'admin') {
@@ -362,6 +426,18 @@ export default function App() {
           </div>
         </section>
 
+        {pendingCount > 0 && (
+          <p
+            role="status"
+            className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+          >
+            {pendingCount === 1
+              ? '1 submission is waiting for internet. It'
+              : `${pendingCount} submissions are waiting for internet. They`}{' '}
+            will send to HOD/HOO automatically. Keep this app open, or open it again when you have data.
+          </p>
+        )}
+
         {tallies.length > 0 && (
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {tallies.map((tally) => (
@@ -438,7 +514,7 @@ export default function App() {
                   aria-live="polite"
                   className="rounded-lg border border-green-300 bg-green-50 px-6 py-3 text-center font-semibold text-green-800"
                 >
-                  Submitted to HOD/HOO!
+                  {submitSuccess}
                 </div>
               ) : showSubmitForm ? (
                 <form

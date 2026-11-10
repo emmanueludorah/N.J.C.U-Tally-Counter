@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'react'
 
+// Add thousands separators to a numeric string for display (e.g. "1234567.5" -> "1,234,567.5").
+// Keeps partial input like "1234." intact and leaves non-numeric text (e.g. "Error") alone.
+function formatNumber(value) {
+  const str = String(value)
+  const match = str.match(/^(-?)(\d+)(\.\d*)?$/)
+  if (!match) return str
+  const [, sign, intPart, decPart = ''] = match
+  return sign + intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + decPart
+}
+
+// Format every number inside a history string like "1234 + 5678 =".
+function formatHistory(text) {
+  return text.replace(/-?\d+(\.\d*)?/g, (n) => formatNumber(n))
+}
+
 export default function Calculator({ onBack, onNavigate }) {
   const [display, setDisplay] = useState('0')
   const [prevValue, setPrevValue] = useState(null)
@@ -189,13 +204,13 @@ export default function Calculator({ onBack, onNavigate }) {
           {/* Display */}
           <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-right">
             <div className="h-5 text-xs font-semibold text-blue-500 overflow-hidden">
-              {history || '\u00A0'}
+              {history ? formatHistory(history) : '\u00A0'}
             </div>
             <div
               className="mt-1 truncate text-4xl font-bold text-blue-950 tabular-nums sm:text-5xl"
-              title={display}
+              title={formatNumber(display)}
             >
-              {display}
+              {formatNumber(display)}
             </div>
           </div>
 

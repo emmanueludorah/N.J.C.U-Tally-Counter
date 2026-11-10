@@ -34,7 +34,20 @@ export async function submitTallyToCloud(submission) {
     submitted_by: submission.submittedBy,
     tallies: submission.tallies,
   })
-  if (error) throw error
+  // 23505 = this id is already saved. That happens when an earlier attempt
+  // arrived but the reply was lost, so the submission is already there.
+  if (error && error.code !== '23505') throw error
+}
+
+/**
+ * True when a failed send was caused by having no connection (so it is worth
+ * retrying later), rather than the database rejecting the data.
+ */
+export function isConnectionError(err) {
+  if (err === NOT_CONFIGURED) return false
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+  // Database errors carry a code; failed network requests do not.
+  return !err?.code
 }
 
 async function fetchAll() {
