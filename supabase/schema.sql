@@ -18,6 +18,9 @@ create table if not exists public.submissions (
   tallies       jsonb not null default '[]'::jsonb
 );
 
+-- The service the count was taken in (e.g. "Bible Study").
+alter table public.submissions add column if not exists service text;
+
 create table if not exists public.admins (
   user_id uuid primary key references auth.users (id) on delete cascade
 );
@@ -55,6 +58,10 @@ alter table public.submissions add constraint submissions_id_check
 alter table public.submissions drop constraint if exists submissions_submitted_by_check;
 alter table public.submissions add constraint submissions_submitted_by_check
   check (char_length(trim(submitted_by)) between 1 and 40);
+
+alter table public.submissions drop constraint if exists submissions_service_check;
+alter table public.submissions add constraint submissions_service_check
+  check (service is null or char_length(trim(service)) between 1 and 40);
 
 alter table public.submissions drop constraint if exists submissions_tallies_check;
 alter table public.submissions add constraint submissions_tallies_check

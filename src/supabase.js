@@ -5,6 +5,15 @@ const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
 const TABLE = 'submissions'
 
+// A password-reset email link opens the app with "type=recovery" (or an
+// error, if the link expired) in the address. Read it before the Supabase
+// client reads and clears it.
+const urlHash = typeof window !== 'undefined' ? window.location.hash : ''
+const recoveryLinkError = /[#&]error_code=/.test(urlHash)
+  ? 'This reset link is invalid or has expired. Please request a new one.'
+  : ''
+const openedFromRecoveryLink = /[#&]type=recovery/.test(urlHash) || Boolean(recoveryLinkError)
+
 export const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null
 
@@ -17,6 +26,7 @@ function fromRow(row) {
   return {
     id: row.id,
     submittedBy: row.submitted_by,
+    service: row.service ?? '',
     submittedAt: row.submitted_at,
     tallies: Array.isArray(row.tallies) ? row.tallies : [],
   }
@@ -32,6 +42,8 @@ export async function submitTallyToCloud(submission) {
   const { error } = await supabase.from(TABLE).insert({
     id: submission.id,
     submitted_by: submission.submittedBy,
+    // Older saved-offline submissions have no service.
+    ...(submission.service ? { service: submission.service } : {}),
     tallies: submission.tallies,
   })
   // 23505 = this id is already saved. That happens when an earlier attempt
@@ -158,6 +170,62 @@ export async function hasAdminSession() {
     return await isAdmin()
   } catch {
     return false
+  }
+}
+
+/**
+ * True when the app was opened from a password-reset email link.
+ */
+export function isPasswordRecovery() {
+  return openedFromRecoveryLink
+}
+
+/** An error message if the reset link was expired or invalid, else ''. */
+export function getRecoveryLinkError() {
+  return recoveryLinkError
+}
+
+/**
+ * Emails a password-reset link. Supabase only sends it if the account exists,
+ * and the reply is the same either way so emails cannot be guessed.
+ */
+export async function sendPasswordReset(email) {
+  if (!supabase) throw NOT_CONFIGURED
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/`,
+  })
+  if (error) {
+    throw new Error(
+      error.status === 429
+        ? 'Too many reset emails. Please wait a while and try again.'
+        : 'Could not send the reset email. Please try again.',
+    )
+  }
+}
+
+/**
+ * Sets a new password for the account signed in by the reset link, then
+ * confirms it is an admin.
+ */
+export async function setNewPassword(password) {
+  if (!supabase) throw NOT_CONFIGURED
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) {
+    throw new Error('This reset link is invalid or has expired. Please request a new one.')
+  }
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) {
+    throw new Error(
+      error.code === 'same_password'
+        ? 'The new password must be different from the old one.'
+        : error.code === 'weak_password'
+          ? 'That password is too weak. Use at least 8 characters.'
+          : error.message || 'Could not change the password. Please try again.',
+    )
+  }
+  if (!(await isAdmin())) {
+    await supabase.auth.signOut()
+    throw new Error('Password changed, but this account does not have admin access.')
   }
 }
 

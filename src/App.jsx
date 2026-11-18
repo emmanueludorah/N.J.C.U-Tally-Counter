@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import TallyCard from './components/TallyCard.jsx'
 import AdminPage from './components/AdminPage.jsx'
 import Calculator from './components/Calculator.jsx'
-import { isConnectionError, submitTallyToCloud } from './supabase.js'
+import { isConnectionError, isPasswordRecovery, submitTallyToCloud } from './supabase.js'
 
 const MIN_NAMES = 2
 const MAX_NAME_LENGTH = 40
@@ -11,12 +11,30 @@ const SUBMISSIONS_KEY = 'tally-submissions'
 const PENDING_KEY = 'tally-pending-submissions'
 const BROADCAST_CHANNEL = 'tally-counter-channel'
 const RETRY_INTERVAL_MS = 30000
+// Name and station are saved together as "Name - Station", which the
+// database limits to 40 characters.
+const MAX_SUBMITTER_NAME = 20
+const MAX_STATION = 17
+const MAX_SERVICE = 40
+const ALLOWED_NAMES = [
+  'Female Teenagers',
+  'Male Teenagers',
+  'Male Teachers',
+  'Female Teachers',
+]
+
+// Matches typed text to an allowed name, ignoring case and extra spaces.
+function findAllowedName(text) {
+  const key = text.trim().replace(/\s+/g, ' ').toLowerCase()
+  return ALLOWED_NAMES.find((allowed) => allowed.toLowerCase() === key)
+}
 
 function isValidTally(tally) {
   return (
     typeof tally?.name === 'string' &&
     tally.name.trim() !== '' &&
     tally.name.length <= MAX_NAME_LENGTH &&
+    ALLOWED_NAMES.includes(tally.name) &&
     Number.isSafeInteger(tally.count) &&
     tally.count >= 0
   )
@@ -87,9 +105,12 @@ export default function App() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [showTotal, setShowTotal] = useState(false)
-  const [page, setPage] = useState('counter') // 'counter' | 'admin' | 'calculator'
+  // A password-reset email link opens straight to the admin page.
+  const [page, setPage] = useState(() => (isPasswordRecovery() ? 'admin' : 'counter')) // 'counter' | 'admin' | 'calculator'
   const [menuOpen, setMenuOpen] = useState(false)
   const [submitterName, setSubmitterName] = useState('')
+  const [station, setStation] = useState('')
+  const [service, setService] = useState('')
   const [submitterError, setSubmitterError] = useState('')
   const [showSubmitForm, setShowSubmitForm] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
@@ -149,16 +170,17 @@ export default function App() {
 
   function handleAdd(event) {
     event.preventDefault()
-    const trimmed = name.trim().slice(0, MAX_NAME_LENGTH)
+    const trimmed = name.trim()
+    const allowed = findAllowedName(trimmed)
 
     if (!trimmed) {
       setError('Type a name first.')
-    } else if (
-      tallies.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())
-    ) {
-      setError(`"${trimmed}" is already on your list.`)
+    } else if (!allowed) {
+      setError(`Only these names are allowed: ${ALLOWED_NAMES.join(', ')}.`)
+    } else if (tallies.some((t) => t.name === allowed)) {
+      setError(`"${allowed}" is already on your list.`)
     } else {
-      setTallies([...tallies, { name: trimmed, count: 0 }])
+      setTallies([...tallies, { name: allowed, count: 0 }])
       setName('')
       setError('')
     }
@@ -180,15 +202,31 @@ export default function App() {
   async function handleSubmitToHOD(e) {
     e.preventDefault()
     if (submitting) return
-    const label = submitterName.trim()
-    if (!label) {
-      setSubmitterError('Please enter your name or station.')
+    const personName = submitterName.trim()
+    const stationName = station.trim()
+    if (!personName && !stationName) {
+      setSubmitterError('Please enter your name and the station you counted.')
       return
     }
+    if (!personName) {
+      setSubmitterError('Please enter your name.')
+      return
+    }
+    if (!stationName) {
+      setSubmitterError('Please enter the station you counted.')
+      return
+    }
+    const serviceName = service.trim().replace(/\s+/g, ' ').slice(0, MAX_SERVICE)
+    if (!serviceName) {
+      setSubmitterError('Please enter the service you counted in.')
+      return
+    }
+    const label = `${personName.slice(0, MAX_SUBMITTER_NAME)} - ${stationName.slice(0, MAX_STATION)}`
 
     const submission = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       submittedBy: label,
+      service: serviceName,
       submittedAt: new Date().toISOString(),
       tallies: tallies.map(({ name, count }) => ({ name, count })),
     }
@@ -216,6 +254,8 @@ export default function App() {
 
     setShowSubmitForm(false)
     setSubmitterName('')
+    setStation('')
+    setService('')
     setSubmitterError('')
     setSubmitSuccess(message)
     setTimeout(() => setSubmitSuccess(''), 6000)
@@ -370,6 +410,7 @@ export default function App() {
               maxLength={MAX_NAME_LENGTH}
               autoComplete="off"
               placeholder="eg Female Teenagers"
+              list="allowed-names"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? 'name-error' : undefined}
               onChange={(event) => {
@@ -378,6 +419,13 @@ export default function App() {
               }}
               className="min-w-0 flex-1 rounded-lg border-2 border-blue-200 bg-white px-4 py-3 outline-none placeholder:text-blue-400 focus:border-blue-700"
             />
+            <datalist id="allowed-names">
+              {ALLOWED_NAMES.filter(
+                (allowed) => !tallies.some((t) => t.name === allowed),
+              ).map((allowed) => (
+                <option key={allowed} value={allowed} />
+              ))}
+            </datalist>
             <button
               type="submit"
               className="cursor-pointer rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
@@ -385,6 +433,9 @@ export default function App() {
               Add name
             </button>
           </div>
+          <p className="mt-2 text-sm text-blue-700">
+            Allowed names: {ALLOWED_NAMES.join(', ')}
+          </p>
           {error && (
             <p id="name-error" role="alert" className="mt-2 text-sm font-medium text-blue-800">
               {error}
@@ -523,20 +574,58 @@ export default function App() {
                   className="rounded-xl border border-blue-200 bg-blue-50 p-4"
                 >
                   <label htmlFor="submitter-name" className="block text-sm font-semibold text-blue-900">
-                    Your name / station
+                    Your name
                   </label>
                   <input
                     id="submitter-name"
                     type="text"
                     required
                     value={submitterName}
-                    maxLength={40}
-                    autoComplete="off"
-                    placeholder="e.g. Gate A Usher"
-                    aria-invalid={Boolean(submitterError)}
+                    maxLength={MAX_SUBMITTER_NAME}
+                    autoComplete="name"
+                    placeholder="e.g. John Okafor"
+                    aria-invalid={Boolean(submitterError) && !submitterName.trim()}
                     aria-describedby={submitterError ? 'submitter-error' : undefined}
                     onChange={(e) => {
                       setSubmitterName(e.target.value)
+                      setSubmitterError('')
+                    }}
+                    className="mt-2 w-full rounded-lg border-2 border-blue-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-blue-400 focus:border-blue-700"
+                  />
+                  <label htmlFor="submitter-station" className="mt-3 block text-sm font-semibold text-blue-900">
+                    Station you counted
+                  </label>
+                  <input
+                    id="submitter-station"
+                    type="text"
+                    required
+                    value={station}
+                    maxLength={MAX_STATION}
+                    autoComplete="off"
+                    placeholder="e.g. Gate A"
+                    aria-invalid={Boolean(submitterError) && !station.trim()}
+                    aria-describedby={submitterError ? 'submitter-error' : undefined}
+                    onChange={(e) => {
+                      setStation(e.target.value)
+                      setSubmitterError('')
+                    }}
+                    className="mt-2 w-full rounded-lg border-2 border-blue-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-blue-400 focus:border-blue-700"
+                  />
+                  <label htmlFor="submitter-service" className="mt-3 block text-sm font-semibold text-blue-900">
+                    Service
+                  </label>
+                  <input
+                    id="submitter-service"
+                    type="text"
+                    required
+                    value={service}
+                    maxLength={MAX_SERVICE}
+                    autoComplete="off"
+                    placeholder="e.g. Bible Study"
+                    aria-invalid={Boolean(submitterError) && !service.trim()}
+                    aria-describedby={submitterError ? 'submitter-error' : undefined}
+                    onChange={(e) => {
+                      setService(e.target.value)
                       setSubmitterError('')
                     }}
                     className="mt-2 w-full rounded-lg border-2 border-blue-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-blue-400 focus:border-blue-700"
