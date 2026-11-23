@@ -473,9 +473,6 @@ export default function App() {
               Add name
             </button>
           </div>
-          <p className="mt-2 text-sm text-blue-700">
-            Allowed names: {ALLOWED_NAMES.join(', ')}
-          </p>
           {error && (
             <p id="name-error" role="alert" className="mt-2 text-sm font-medium text-blue-800">
               {error}
