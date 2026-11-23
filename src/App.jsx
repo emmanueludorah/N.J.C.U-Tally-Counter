@@ -216,6 +216,11 @@ export default function App() {
       setSubmitterError(`Please add at least ${MIN_NAMES} names before submitting.`)
       return
     }
+    const totalCount = tallies.reduce((sum, t) => sum + t.count, 0)
+    if (totalCount === 0) {
+      setSubmitterError('All counts are 0. Start counting before submitting.')
+      return
+    }
     const personName = submitterName.trim()
     const stationName = station.trim()
     if (!personName && !stationName) {
@@ -249,7 +254,7 @@ export default function App() {
     // Without internet it is saved on the phone and sent automatically later.
     setSubmitting(true)
     setSubmitterError('')
-    let message = 'Submitted to HOD/HOO!'
+    let message = 'Submitted to HOD/HOO! Counts have been reset to 0.'
     try {
       await submitTallyToCloud(submission)
       recordSent(submission)
@@ -261,12 +266,14 @@ export default function App() {
       }
       savePending([...loadPending(), submission])
       setPendingCount(loadPending().length)
-      message = 'No internet. Saved on this phone. It will send to HOD/HOO automatically when you are back online.'
+      message = 'No internet. Saved on this phone and counts reset to 0. It will send to HOD/HOO automatically when you are back online.'
     } finally {
       setSubmitting(false)
     }
 
+    setTallies((current) => current.map((t) => ({ ...t, count: 0 })))
     setShowSubmitForm(false)
+    setShowTotal(false)
     setSubmitterName('')
     setStation('')
     setService('')
