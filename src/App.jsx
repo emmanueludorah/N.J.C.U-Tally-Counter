@@ -664,25 +664,13 @@ export default function App() {
                       {submitterError}
                     </p>
                   )}
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="flex-1 cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {submitting ? 'Sending…' : 'Confirm Submit'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSubmitForm(false)
-                        setSubmitterError('')
-                      }}
-                      className="cursor-pointer rounded-lg border-2 border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="mt-3 w-full cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {submitting ? 'Sending…' : 'Confirm Submit'}
+                  </button>
                 </form>
               ) : (
                 <button
