@@ -405,7 +405,7 @@ export default function AdminPage({ onBack, onNavigate }) {
                   {error}
                 </p>
               )}
-              <button type="submit" disabled={signingIn} className="mt-4 w-full cursor-pointer rounded-lg bg-blue-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60">
+              <button type="submit" disabled={signingIn} className="mt-4 w-full cursor-pointer rounded-lg bg-green-700 py-3 font-semibold text-white transition-colors hover:bg-green-800 disabled:cursor-wait disabled:opacity-60">
                 {signingIn ? 'Sending…' : 'Send Reset Link'}
               </button>
             </form>
@@ -487,7 +487,7 @@ export default function AdminPage({ onBack, onNavigate }) {
             </button>
           </form>
 
-          <button type="button" onClick={() => switchMode('forgot')} className="mt-4 block w-full cursor-pointer text-center text-sm font-semibold text-blue-700 underline-offset-2 hover:underline">
+          <button type="button" onClick={() => switchMode('forgot')} className="mt-4 block w-full cursor-pointer text-center text-sm font-semibold text-red-600 underline-offset-2 hover:text-red-700 hover:underline">
             Forgot password?
           </button>
 
