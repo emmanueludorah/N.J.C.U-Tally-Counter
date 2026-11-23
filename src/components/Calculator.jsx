@@ -12,7 +12,7 @@ function formatNumber(value) {
 
 // Format every number inside a history string like "1234 + 5678 =".
 function formatHistory(text) {
-  return text.replace(/-?\d+(\.\d*)?/g, (n) => formatNumber(n))
+  return text.replace(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi, (n) => formatNumber(n))
 }
 
 export default function Calculator({ onBack, onNavigate }) {
@@ -27,6 +27,7 @@ export default function Calculator({ onBack, onNavigate }) {
       setDisplay(String(digit))
       setWaitingForOperand(false)
     } else {
+      if (display.replace(/[^0-9]/g, '').length >= 15) return
       setDisplay(display === '0' ? String(digit) : display + digit)
     }
   }
@@ -95,11 +96,9 @@ export default function Calculator({ onBack, onNavigate }) {
     if (display === 'Error') return
 
     // If waiting for second operand, switch the operator without recalculating.
-    if (waitingForOperand) {
+    if (waitingForOperand && prevValue != null) {
       setOperation(nextOperation)
-      if (prevValue != null) {
-        setHistory(`${Number(prevValue.toFixed(8))} ${nextOperation}`)
-      }
+      setHistory(`${Number(prevValue.toFixed(8))} ${nextOperation}`)
       return
     }
 
@@ -110,7 +109,7 @@ export default function Calculator({ onBack, onNavigate }) {
       setPrevValue(inputValue)
       setHistory(`${Number(inputValue.toFixed(8))} ${nextOperation}`)
     } else if (operation) {
-      const currentValue = prevValue || 0
+      const currentValue = prevValue ?? 0
       const result = performCalculation(operation, currentValue, inputValue)
 
       if (result === 'Error') {

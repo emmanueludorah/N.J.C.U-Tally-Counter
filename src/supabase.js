@@ -56,7 +56,7 @@ export async function submitTallyToCloud(submission) {
  * retrying later), rather than the database rejecting the data.
  */
 export function isConnectionError(err) {
-  if (err === NOT_CONFIGURED) return false
+  if (err === NOT_CONFIGURED || err?.message?.includes('Supabase is not configured')) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
   // Database errors carry a code; failed network requests do not.
   return !err?.code

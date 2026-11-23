@@ -28,7 +28,22 @@ const CATEGORIES = [
 
 // Names outside the four categories (from older submissions).
 function isCategory(name) {
-  return CATEGORIES.some((c) => c.toLowerCase() === name.trim().toLowerCase())
+  return typeof name === 'string' && CATEGORIES.some((c) => c.toLowerCase() === name.trim().toLowerCase())
+}
+
+function fallbackCopyText(text, onSuccess) {
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.opacity = '0'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    if (successful) onSuccess?.()
+  } catch {}
 }
 
 // The calendar day (in this device's time zone) a submission was made, as
@@ -301,10 +316,22 @@ export default function AdminPage({ onBack, onNavigate }) {
       }),
     ]
 
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const text = lines.join('\n')
+    const onCopied = () => {
       setCopied(true)
       setTimeout(() => setCopied(false), 3000)
-    })
+    }
+
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(onCopied)
+        .catch(() => {
+          fallbackCopyText(text, onCopied)
+        })
+    } else {
+      fallbackCopyText(text, onCopied)
+    }
   }
 
   function handlePrint() {
@@ -528,7 +555,7 @@ export default function AdminPage({ onBack, onNavigate }) {
               <p className="text-xs text-blue-500">Live aggregated counts</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             {submissions.length > 0 && (
               <button
                 type="button"
@@ -567,7 +594,7 @@ export default function AdminPage({ onBack, onNavigate }) {
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         {/* Live indicator */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-sm print:hidden">
           <div className="flex items-center gap-2 text-blue-700">
             <span
               className={`h-2.5 w-2.5 rounded-full transition-colors duration-300 ${flash ? 'bg-yellow-400' : isCloudConnected ? 'bg-green-500' : 'bg-blue-400'} animate-pulse`}
@@ -599,7 +626,7 @@ export default function AdminPage({ onBack, onNavigate }) {
                 flash ? 'border-yellow-400 bg-yellow-50' : 'border-blue-200 bg-blue-50'
               }`}
             >
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
                 <label htmlFor="day-select" className="text-sm font-semibold text-blue-900">
                   Show totals for
                 </label>
@@ -621,7 +648,7 @@ export default function AdminPage({ onBack, onNavigate }) {
                 <h2 className="text-lg font-bold text-blue-900">
                   Day Total [{shownLabel}]
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 print:hidden">
                   <button
                     type="button"
                     onClick={handleCopyReport}
@@ -736,18 +763,18 @@ export default function AdminPage({ onBack, onNavigate }) {
                           type="button"
                           onClick={() => handleRemoveSubmission(sub.id)}
                           aria-label={`Remove submission from ${sub.submittedBy}`}
-                          className="shrink-0 cursor-pointer rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="shrink-0 cursor-pointer rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 print:hidden"
                         >
                           Remove
                         </button>
                       </div>
                       <table className="w-full text-sm">
                         <tbody>
-                          {sub.tallies.map((t) => (
-                            <tr key={t.name} className="border-b border-blue-100">
-                              <td className="py-1.5 pr-3 text-blue-700">{t.name}</td>
+                          {(sub?.tallies || []).map((t, idx) => (
+                            <tr key={t?.name || idx} className="border-b border-blue-100">
+                              <td className="py-1.5 pr-3 text-blue-700">{t?.name || 'Item'}</td>
                               <td className="py-1.5 text-right font-bold tabular-nums text-blue-950">
-                                {t.count}
+                                {Number(t?.count) || 0}
                               </td>
                             </tr>
                           ))}
