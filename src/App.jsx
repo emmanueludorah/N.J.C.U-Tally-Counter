@@ -254,7 +254,7 @@ export default function App() {
     // Without internet it is saved on the phone and sent automatically later.
     setSubmitting(true)
     setSubmitterError('')
-    let message = 'Submitted to HOD/HOO! Counts have been reset to 0.'
+    let message = 'Submitted to HOD/HOO! Ready to start a new count.'
     try {
       await submitTallyToCloud(submission)
       recordSent(submission)
@@ -266,12 +266,14 @@ export default function App() {
       }
       savePending([...loadPending(), submission])
       setPendingCount(loadPending().length)
-      message = 'No internet. Saved on this phone and counts reset to 0. It will send to HOD/HOO automatically when you are back online.'
+      message = 'No internet. Saved on this phone. It will send to HOD/HOO automatically when you are back online.'
     } finally {
       setSubmitting(false)
     }
 
-    setTallies((current) => current.map((t) => ({ ...t, count: 0 })))
+    setTallies([])
+    setName('')
+    setError('')
     setShowSubmitForm(false)
     setShowTotal(false)
     setSubmitterName('')
@@ -426,6 +428,15 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        {submitSuccess && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-6 rounded-lg border border-green-300 bg-green-50 px-6 py-3.5 text-center font-semibold text-green-800 shadow-sm"
+          >
+            {submitSuccess}
+          </div>
+        )}
         <form onSubmit={handleAdd} noValidate>
           <label htmlFor="tally-name" className="block font-semibold">
             What do you want to count?
@@ -588,15 +599,7 @@ export default function App() {
 
             {/* Submit to HOD/HOO */}
             <div className="sm:shrink-0">
-              {submitSuccess ? (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="rounded-lg border border-green-300 bg-green-50 px-6 py-3 text-center font-semibold text-green-800"
-                >
-                  {submitSuccess}
-                </div>
-              ) : showSubmitForm ? (
+              {showSubmitForm ? (
                 <form
                   onSubmit={handleSubmitToHOD}
                   noValidate
