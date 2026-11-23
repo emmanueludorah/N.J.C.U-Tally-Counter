@@ -8,11 +8,11 @@ const TABLE = 'submissions'
 // A password-reset email link opens the app with "type=recovery" (or an
 // error, if the link expired) in the address. Read it before the Supabase
 // client reads and clears it.
-const urlHash = typeof window !== 'undefined' ? window.location.hash : ''
-const recoveryLinkError = /[#&]error_code=/.test(urlHash)
+const urlHash = typeof window !== 'undefined' ? (window.location.hash + window.location.search) : ''
+const recoveryLinkError = /[#&?]error_code=/.test(urlHash)
   ? 'This reset link is invalid or has expired. Please request a new one.'
   : ''
-const openedFromRecoveryLink = /[#&]type=recovery/.test(urlHash) || Boolean(recoveryLinkError)
+const openedFromRecoveryLink = /[#&?]type=recovery/.test(urlHash) || Boolean(recoveryLinkError)
 
 export const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null

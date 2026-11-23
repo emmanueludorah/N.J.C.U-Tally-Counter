@@ -92,7 +92,10 @@ function savePending(pending) {
 
 // Records a submission that reached the HOD and tells open admin tabs.
 function recordSent(submission) {
-  saveSubmissions([...loadSubmissions(), submission])
+  const current = loadSubmissions()
+  if (!current.some((s) => s.id === submission.id)) {
+    saveSubmissions([...current, submission])
+  }
   try {
     const channel = new BroadcastChannel(BROADCAST_CHANNEL)
     channel.postMessage({ type: 'new-submission' })
@@ -118,6 +121,7 @@ export default function App() {
   const [pendingCount, setPendingCount] = useState(() => loadPending().length)
   const inputRef = useRef(null)
   const sendingPendingRef = useRef(false)
+  const successTimerRef = useRef(null)
 
   // Sends any submissions saved while offline, oldest first. Stops at the
   // first connection failure and tries again later.
@@ -157,6 +161,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tallies))
     } catch {
@@ -184,7 +194,7 @@ export default function App() {
       setName('')
       setError('')
     }
-    inputRef.current.focus()
+    inputRef.current?.focus()
   }
 
   function changeCount(targetName, getNewCount) {
@@ -202,6 +212,10 @@ export default function App() {
   async function handleSubmitToHOD(e) {
     e.preventDefault()
     if (submitting) return
+    if (!isUnlocked || tallies.length === 0) {
+      setSubmitterError(`Please add at least ${MIN_NAMES} names before submitting.`)
+      return
+    }
     const personName = submitterName.trim()
     const stationName = station.trim()
     if (!personName && !stationName) {
@@ -258,7 +272,8 @@ export default function App() {
     setService('')
     setSubmitterError('')
     setSubmitSuccess(message)
-    setTimeout(() => setSubmitSuccess(''), 6000)
+    if (successTimerRef.current) clearTimeout(successTimerRef.current)
+    successTimerRef.current = setTimeout(() => setSubmitSuccess(''), 6000)
   }
 
   if (page === 'admin') {
@@ -355,9 +370,15 @@ export default function App() {
 
             {/* Mobile Dropdown Menu */}
             {menuOpen && (
-              <div
-                className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-blue-100 bg-white p-2 text-blue-950 shadow-2xl z-50 animate-in fade-in"
-              >
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-blue-100 bg-white p-2 text-blue-950 shadow-2xl z-50 animate-in fade-in"
+                >
                 <button
                   type="button"
                   onClick={() => {
@@ -391,6 +412,7 @@ export default function App() {
                   Admin
                 </button>
               </div>
+              </>
             )}
           </div>
         </div>
@@ -659,7 +681,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowSubmitForm(true)}
-                  className="w-full cursor-pointer rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:w-auto"
+                  disabled={!isUnlocked}
+                  className="w-full cursor-pointer rounded-lg bg-green-700 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                 >
                   Submit to HOD/HOO
                 </button>

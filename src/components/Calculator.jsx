@@ -23,7 +23,7 @@ export default function Calculator({ onBack, onNavigate }) {
   const [history, setHistory] = useState('')
 
   function handleDigit(digit) {
-    if (waitingForOperand) {
+    if (waitingForOperand || display === 'Error') {
       setDisplay(String(digit))
       setWaitingForOperand(false)
     } else {
@@ -32,7 +32,7 @@ export default function Calculator({ onBack, onNavigate }) {
   }
 
   function handleDecimal() {
-    if (waitingForOperand) {
+    if (waitingForOperand || display === 'Error') {
       setDisplay('0.')
       setWaitingForOperand(false)
       return
@@ -52,41 +52,63 @@ export default function Calculator({ onBack, onNavigate }) {
   }
 
   function handleToggleSign() {
+    if (display === 'Error') return
     const value = parseFloat(display)
-    if (value === 0) return
+    if (isNaN(value) || value === 0) return
     setDisplay(String(-value))
   }
 
   function handlePercent() {
+    if (display === 'Error') return
     const value = parseFloat(display)
     if (isNaN(value)) return
-    setDisplay(String(value / 100))
+    const result = value / 100
+    setDisplay(String(Number(result.toFixed(8))))
   }
 
   function performCalculation(op, first, second) {
+    let result
     switch (op) {
       case '+':
-        return first + second
+        result = first + second
+        break
       case '−':
       case '-':
-        return first - second
+        result = first - second
+        break
       case '×':
       case '*':
-        return first * second
+        result = first * second
+        break
       case '÷':
       case '/':
-        return second === 0 ? 'Error' : first / second
+        if (second === 0) return 'Error'
+        result = first / second
+        break
       default:
         return second
     }
+    return Number.isFinite(result) ? result : 'Error'
   }
 
   function handleOperation(nextOperation) {
+    if (display === 'Error') return
+
+    // If waiting for second operand, switch the operator without recalculating.
+    if (waitingForOperand) {
+      setOperation(nextOperation)
+      if (prevValue != null) {
+        setHistory(`${Number(prevValue.toFixed(8))} ${nextOperation}`)
+      }
+      return
+    }
+
     const inputValue = parseFloat(display)
+    if (isNaN(inputValue)) return
 
     if (prevValue == null) {
       setPrevValue(inputValue)
-      setHistory(`${display} ${nextOperation}`)
+      setHistory(`${Number(inputValue.toFixed(8))} ${nextOperation}`)
     } else if (operation) {
       const currentValue = prevValue || 0
       const result = performCalculation(operation, currentValue, inputValue)
@@ -110,7 +132,9 @@ export default function Calculator({ onBack, onNavigate }) {
   }
 
   function handleEquals() {
+    if (display === 'Error') return
     const inputValue = parseFloat(display)
+    if (isNaN(inputValue)) return
 
     if (operation && prevValue != null) {
       const result = performCalculation(operation, prevValue, inputValue)
@@ -120,7 +144,7 @@ export default function Calculator({ onBack, onNavigate }) {
         setHistory('')
       } else {
         const formatted = String(Number(result.toFixed(8)))
-        setHistory(`${prevValue} ${operation} ${inputValue} =`)
+        setHistory(`${Number(prevValue.toFixed(8))} ${operation} ${Number(inputValue.toFixed(8))} =`)
         setDisplay(formatted)
       }
 
@@ -133,6 +157,9 @@ export default function Calculator({ onBack, onNavigate }) {
   // Keyboard support
   useEffect(() => {
     function handleKeyDown(e) {
+      // Don't intercept browser shortcuts like Ctrl+C, Ctrl+R, Cmd+C, etc.
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
       const key = e.key
       if (/^[0-9]$/.test(key)) {
         handleDigit(parseInt(key, 10))
@@ -151,8 +178,11 @@ export default function Calculator({ onBack, onNavigate }) {
       } else if (key === 'Escape' || key === 'c' || key === 'C') {
         handleClear()
       } else if (key === 'Backspace') {
-        if (!waitingForOperand && display.length > 1) {
-          setDisplay(display.slice(0, -1))
+        if (display === 'Error') {
+          setDisplay('0')
+        } else if (!waitingForOperand && display.length > 1) {
+          const next = display.slice(0, -1)
+          setDisplay(next === '-' ? '0' : next)
         } else {
           setDisplay('0')
         }

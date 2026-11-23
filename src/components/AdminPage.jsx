@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
+  supabase,
   subscribeToSubmissions,
   deleteSubmissionFromCloud,
   clearAllSubmissionsFromCloud,
@@ -33,12 +34,19 @@ function isCategory(name) {
 // The calendar day (in this device's time zone) a submission was made, as
 // YYYY-MM-DD, so submissions can be grouped by day.
 function dayKey(date) {
-  return new Date(date).toLocaleDateString('en-CA')
+  if (!date) return 'unknown'
+  const d = new Date(date)
+  return isNaN(d.getTime()) ? 'unknown' : d.toLocaleDateString('en-CA')
 }
 
 function formatDay(key) {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+  if (!key || key === 'unknown') return 'Unknown Date'
+  const parts = key.split('-')
+  if (parts.length !== 3) return key
+  const [y, m, d] = parts.map(Number)
+  const date = new Date(y, m - 1, d)
+  if (isNaN(date.getTime())) return key
+  return date.toLocaleDateString(undefined, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -75,17 +83,37 @@ export default function AdminPage({ onBack, onNavigate }) {
       if (linkError) {
         setMode('forgot')
         setError(linkError)
+      } else {
+        setMode('reset')
       }
       setCheckingSession(false)
       return
     }
+
     hasAdminSession().then((ok) => {
       if (!active) return
       setLoggedIn(ok)
       setCheckingSession(false)
     })
+
+    // Listen for auth state changes (e.g. password recovery or logout)
+    let authSubscription = null
+    if (supabase) {
+      const { data } = supabase.auth.onAuthStateChange((event) => {
+        if (!active) return
+        if (event === 'PASSWORD_RECOVERY') {
+          setMode('reset')
+          setError('')
+        } else if (event === 'SIGNED_OUT') {
+          setLoggedIn(false)
+        }
+      })
+      authSubscription = data?.subscription
+    }
+
     return () => {
       active = false
+      authSubscription?.unsubscribe()
     }
   }, [])
 
@@ -128,8 +156,10 @@ export default function AdminPage({ onBack, onNavigate }) {
   const aggregated = useCallback(() => {
     const map = new Map()
     for (const submission of shown) {
-      for (const tally of submission.tallies) {
-        map.set(tally.name, (map.get(tally.name) ?? 0) + tally.count)
+      for (const tally of submission?.tallies || []) {
+        if (!tally?.name) continue
+        const count = Number(tally.count) || 0
+        map.set(tally.name, (map.get(tally.name) ?? 0) + count)
       }
     }
     return [...map.entries()].map(([name, count]) => ({ name, count }))
@@ -180,10 +210,10 @@ export default function AdminPage({ onBack, onNavigate }) {
     try {
       await sendPasswordReset(email.trim())
       setResetNotice(
-        ' Check Your Email',
+        'A password reset link has been sent to your email. Please check your inbox (and spam folder) and click the link to reset your password.',
       )
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Could not send reset link. Please try again.')
     } finally {
       setSigningIn(false)
     }
@@ -209,7 +239,7 @@ export default function AdminPage({ onBack, onNavigate }) {
       setMode('login')
       setLoggedIn(true)
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Could not change password. Please try again.')
     } finally {
       setSigningIn(false)
     }
@@ -265,7 +295,7 @@ export default function AdminPage({ onBack, onNavigate }) {
       '',
       `Submissions (${shown.length}):`,
       ...[...shown].reverse().map((s) => {
-        const subTotal = s.tallies.reduce((sum, t) => sum + t.count, 0)
+        const subTotal = (s?.tallies || []).reduce((sum, t) => sum + (Number(t?.count) || 0), 0)
         const service = s.service ? ` (${s.service})` : ''
         return `- ${s.submittedBy || 'Counter'}${service}: ${subTotal}`
       }),
@@ -684,7 +714,9 @@ export default function AdminPage({ onBack, onNavigate }) {
               )}
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[...shown].reverse().map((sub) => {
-                  const subTotal = sub.tallies.reduce((s, t) => s + t.count, 0)
+                  const subTotal = (sub?.tallies || []).reduce((s, t) => s + (Number(t?.count) || 0), 0)
+                  const subDate = new Date(sub.submittedAt)
+                  const formattedDate = isNaN(subDate.getTime()) ? 'Date unavailable' : subDate.toLocaleString()
                   return (
                     <li
                       key={sub.id}
@@ -697,7 +729,7 @@ export default function AdminPage({ onBack, onNavigate }) {
                             <p className="text-sm font-medium text-blue-800">Service: {sub.service}</p>
                           )}
                           <p className="text-xs text-blue-500">
-                            {new Date(sub.submittedAt).toLocaleString()}
+                            {formattedDate}
                           </p>
                         </div>
                         <button
