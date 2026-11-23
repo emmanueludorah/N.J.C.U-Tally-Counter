@@ -221,7 +221,7 @@ export default function Calculator({ onBack, onNavigate }) {
               onClick={onBack}
               className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800"
             >
-              ← Counter
+              Counter
             </button>
           </div>
         </div>

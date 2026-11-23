@@ -412,7 +412,7 @@ export default function AdminPage({ onBack, onNavigate }) {
           )}
 
           <button type="button" onClick={() => switchMode('login')} className="mt-4 block w-full cursor-pointer text-center text-sm font-semibold text-blue-700 underline-offset-2 hover:underline">
-            ← Back to Login
+            Back to Login
           </button>
         </div>
       </div>
@@ -496,7 +496,7 @@ export default function AdminPage({ onBack, onNavigate }) {
             onClick={onBack}
             className="mt-4 w-full cursor-pointer rounded-lg border-2 border-blue-200 py-3 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50"
           >
-            ← Back to Counter
+            Back to Counter
           </button>
         </div>
       </div>
@@ -559,7 +559,7 @@ export default function AdminPage({ onBack, onNavigate }) {
               onClick={onBack}
               className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800"
             >
-              ← Counter
+              Counter
             </button>
           </div>
         </div>
