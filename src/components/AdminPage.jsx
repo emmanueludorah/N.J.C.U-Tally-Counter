@@ -508,7 +508,7 @@ export default function AdminPage({ onBack, onNavigate }) {
             <button
               type="submit"
               disabled={signingIn}
-              className="mt-4 w-full cursor-pointer rounded-lg bg-blue-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
+              className="mt-4 w-full cursor-pointer rounded-lg bg-green-700 py-3 font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
             >
               {signingIn ? 'Logging in…' : 'Login'}
             </button>

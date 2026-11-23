@@ -667,7 +667,7 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="mt-3 w-full cursor-pointer rounded-lg bg-blue-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
+                    className="mt-3 w-full cursor-pointer rounded-lg bg-green-700 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
                   >
                     {submitting ? 'Sending…' : 'Confirm Submit'}
                   </button>
